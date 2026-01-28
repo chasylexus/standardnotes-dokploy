@@ -1,0 +1,95 @@
+version: "3.8"
+
+services:
+  server:
+    image: standardnotes/server
+    restart: unless-stopped
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USERNAME: std_notes_user
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_DATABASE: standard_notes_db
+      DB_TYPE: mysql
+
+      REDIS_HOST: cache
+      REDIS_PORT: 6379
+      CACHE_TYPE: redis
+
+      AUTH_JWT_SECRET: ${AUTH_JWT_SECRET}
+      AUTH_SERVER_ENCRYPTION_SERVER_KEY: ${AUTH_SERVER_ENCRYPTION_SERVER_KEY}
+      VALET_TOKEN_SECRET: ${VALET_TOKEN_SECRET}
+
+      PUBLIC_FILES_SERVER_URL: ${PUBLIC_FILES_SERVER_URL}
+
+    expose:
+      - "3000"  # API / Sync
+      - "3104"  # Files
+    volumes:
+      - server_logs:/var/lib/server/logs
+      - uploads:/opt/server/packages/files/dist/uploads
+    depends_on:
+      - db
+      - cache
+      - localstack
+    networks:
+      - dokploy-network
+
+  localstack:
+    image: localstack/localstack:3.0
+    restart: unless-stopped
+    environment:
+      SERVICES: sns,sqs
+      HOSTNAME_EXTERNAL: localstack
+      LS_LOG: warn
+    expose:
+      - "4566"
+    volumes:
+      - ./localstack_bootstrap.sh:/etc/localstack/init/ready.d/localstack_bootstrap.sh:ro
+      - localstack_data:/var/lib/localstack
+    networks:
+      - dokploy-network
+
+  db:
+    image: mysql:8
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: standard_notes_db
+      MYSQL_USER: std_notes_user
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    expose:
+      - "3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - dokploy-network
+
+  cache:
+    image: redis:6.0-alpine
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - dokploy-network
+
+  web:
+    image: standardnotes/web
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - dokploy-network
+
+volumes:
+  mysql_data:
+  redis_data:
+  localstack_data:
+  server_logs:
+  uploads:
+
+networks:
+  dokploy-network:
+    external: true
